@@ -1,24 +1,38 @@
+use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use std::fmt::{self, Debug};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use std::ptr::{self, null_mut};
 
+type Link<T> = *mut Node<T>;
 /// 双链表
 pub struct LinkedList<T> {
     // TODO: YOUR CODE HERE
-    marker: PhantomData<T>, // 可以去掉
+    head:Link<T>,
+    tail:Link<T>,
+    // marker: PhantomData<T>, // 可以去掉
 }
 
 /// 链表节点
 struct Node<T> {
     // TODO: YOUR CODE HERE
-    marker: PhantomData<T>, // 可以去掉
+    elem:T,
+    next:Link<T>,
+    prev:Link<T>,
 }
 
 /// 链表迭代器
 pub struct Iter<'a, T> {
     // TODO: YOUR CODE HERE
-    marker: PhantomData<&'a T>,
+    // marker: PhantomData<&'a T>,
+}
+
+impl<'a,T> Iterator for Iter<'a,T>{
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        self.0.pop_front()
+    }
 }
 
 /// 链表可变迭代器
@@ -34,7 +48,8 @@ impl<T> LinkedList<T> {
         //     // TODO: YOUR CODE HERE
         //     marker: PhantomData,
         // }
-        unimplemented!()
+        LinkedList { head:ptr::null_mut(), tail: null_mut() }
+        // unimplemented!()
     }
 
     /// 将元素插入到链表头部
@@ -48,7 +63,8 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn push_front(&mut self, _elem: T) {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+       
+        // unimplemented!()
     }
 
     /// 将元素插入到链表尾部
@@ -62,7 +78,22 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn push_back(&mut self, _elem: T) {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        unsafe{
+            let new_tail = Box::into_raw(Box::new(Node{
+                elem:_elem,
+                next:ptr::null_mut(),
+                prev:ptr::null_mut(),
+            }));
+            if !self.tail.is_null(){
+                (*self.tail).next = new_tail;
+                (*new_tail).prev = self.tail;
+            }else{
+                self.head = new_tail;
+                self.tail = new_tail;
+            }
+            self.tail = new_tail;
+        }
+        // unimplemented!()
     }
 
     /// 将第一个元素返回
