@@ -9,31 +9,32 @@ type Link<T> = *mut Node<T>;
 /// 双链表
 pub struct LinkedList<T> {
     // TODO: YOUR CODE HERE
-    head:Link<T>,
-    tail:Link<T>,
+    head: Link<T>,
+    tail: Link<T>,
+    length: i32,
     // marker: PhantomData<T>, // 可以去掉
 }
 
 /// 链表节点
 struct Node<T> {
     // TODO: YOUR CODE HERE
-    elem:T,
-    next:Link<T>,
-    prev:Link<T>,
+    elem: T,
+    next: Link<T>,
+    prev: Link<T>,
 }
 
 /// 链表迭代器
 pub struct Iter<'a, T> {
     // TODO: YOUR CODE HERE
-    // marker: PhantomData<&'a T>,
+    marker: PhantomData<&'a T>,
 }
 
-impl<'a,T> Iterator for Iter<'a,T>{
-    type Item = T;
-    fn next(&mut self) -> Option<T> {
-        self.0.pop_front()
-    }
-}
+// impl<'a, T> Iterator for Iter<'a, T> {
+//     type Item = T;
+//     fn next(&mut self) -> Option<T> {
+//         self.0.pop_front()
+//     }
+// }
 
 /// 链表可变迭代器
 pub struct IterMut<'a, T> {
@@ -48,7 +49,11 @@ impl<T> LinkedList<T> {
         //     // TODO: YOUR CODE HERE
         //     marker: PhantomData,
         // }
-        LinkedList { head:ptr::null_mut(), tail: null_mut() }
+        LinkedList {
+            head: ptr::null_mut(),
+            tail: ptr::null_mut(),
+            length: 0,
+        }
         // unimplemented!()
     }
 
@@ -63,8 +68,22 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn push_front(&mut self, _elem: T) {
         // TODO: YOUR CODE HERE
-       
         // unimplemented!()
+        self.length += 1;
+        unsafe {
+            let new_head = Box::into_raw(Box::new(Node {
+                elem: _elem,
+                next: ptr::null_mut(),
+                prev: ptr::null_mut(),
+            }));
+            if !self.head.is_null() {
+                (*new_head).next = self.head;
+                (*self.head).prev = new_head;
+            } else {
+                self.tail = new_head;
+            }
+            self.head = new_head;
+        }
     }
 
     /// 将元素插入到链表尾部
@@ -78,18 +97,17 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn push_back(&mut self, _elem: T) {
         // TODO: YOUR CODE HERE
-        unsafe{
-            let new_tail = Box::into_raw(Box::new(Node{
-                elem:_elem,
-                next:ptr::null_mut(),
-                prev:ptr::null_mut(),
+        self.length += 1;
+        unsafe {
+            let new_tail = Box::into_raw(Box::new(Node {
+                elem: _elem,
+                next: ptr::null_mut(),
+                prev: self.tail,
             }));
-            if !self.tail.is_null(){
+            if !self.tail.is_null() {
                 (*self.tail).next = new_tail;
-                (*new_tail).prev = self.tail;
-            }else{
+            } else {
                 self.head = new_tail;
-                self.tail = new_tail;
             }
             self.tail = new_tail;
         }
@@ -107,7 +125,24 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn pop_front(&mut self) -> Option<T> {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        // unimplemented!()
+        self.length -= 1;
+        unsafe {
+            if self.head.is_null() {
+                None
+            } else {
+                let head = Box::from_raw(self.head);
+                self.head = head.next;
+
+                if self.head.is_null() {
+                    self.tail = ptr::null_mut();
+                } else {
+                    // 将头更新为空
+                    (*self.head).prev = ptr::null_mut();
+                }
+                Some(head.elem)
+            }
+        }
     }
 
     /// 将最后一个元素返回
@@ -121,7 +156,24 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn pop_back(&mut self) -> Option<T> {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        // unimplemented!()
+        self.length -= 1;
+        unsafe {
+            if self.tail.is_null() {
+                None
+            } else {
+                let tail = Box::from_raw(self.tail);
+                self.tail = tail.prev;
+
+                if self.tail.is_null() {
+                    self.head = ptr::null_mut();
+                } else {
+                    // 将头更新为空
+                    (*self.tail).next = ptr::null_mut();
+                }
+                Some(tail.elem)
+            }
+        }
     }
 
     /// 返回链表第一个元素的引用  
@@ -136,13 +188,28 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn front(&self) -> Option<&T> {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        // unimplemented!()
+        // Some(&*self.head)
+        unsafe {
+            if self.head.is_null() {
+                None
+            } else {
+                Some(&(*self.head).elem)
+            }
+        }
     }
 
     /// 返回链表第一个元素的可变引用   
     pub fn front_mut(&mut self) -> Option<&mut T> {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        // unimplemented!()
+        unsafe {
+            if self.head.is_null() {
+                None
+            } else {
+                Some(&mut (*self.head).elem)
+            }
+        }
     }
 
     /// 返回链表最后一个元素的引用
@@ -157,13 +224,27 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn back(&self) -> Option<&T> {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        // unimplemented!()
+        unsafe {
+            if self.tail.is_null() {
+                None
+            } else {
+                Some(&(*self.tail).elem)
+            }
+        }
     }
 
     /// 返回链表最后一个元素的可变引用
     pub fn back_mut(&mut self) -> Option<&mut T> {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        // unimplemented!()
+        unsafe {
+            if self.tail.is_null() {
+                None
+            } else {
+                Some(&mut (*self.tail).elem)
+            }
+        }
     }
 
     /// 返回链表长度
@@ -177,7 +258,8 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn len(&self) -> usize {
         // TODO: YOUR CODE HERE
-        unimplemented!()
+        // unimplemented!()
+        self.length as usize
     }
 
     /// 判断链表是否为空
@@ -288,7 +370,7 @@ impl<T> LinkedList<T> {
     }
 
     /// 查找链表中第一个满足条件的元素
-    /// 
+    ///
     /// # Examples
     /// ```
     /// use linked_list::double_linked_list::LinkedList;
@@ -296,7 +378,10 @@ impl<T> LinkedList<T> {
     /// assert_eq!(list.find_mut(|x| x % 2 == 0), Some(&mut 2));
     /// assert_eq!(list.find_mut(|x| x % 4 == 0), None);
     /// ```
-    pub fn find_mut<P>(&mut self,predicate:P)->Option<&mut T> where P:Fn(&T) -> bool{
+    pub fn find_mut<P>(&mut self, predicate: P) -> Option<&mut T>
+    where
+        P: Fn(&T) -> bool,
+    {
         // TODO: YOUR CODE HERE
         unimplemented!();
     }
@@ -366,7 +451,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<'a, T> DoubleEndedIterator for Iter<'a, T> {
+impl<'a, T: 'a> DoubleEndedIterator for Iter<'a, T> {
     // 返回前一个元素
     fn next_back(&mut self) -> Option<Self::Item> {
         // TODO: YOUR CODE HERE
