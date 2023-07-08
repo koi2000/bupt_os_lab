@@ -26,20 +26,17 @@ struct Node<T> {
 /// 链表迭代器
 pub struct Iter<'a, T> {
     // TODO: YOUR CODE HERE
-    marker: PhantomData<&'a T>,
+    // marker: PhantomData<&'a T>,
+    next: Option<&'a Node<T>>,
+    prev: Option<&'a Node<T>>,
 }
-
-// impl<'a, T> Iterator for Iter<'a, T> {
-//     type Item = T;
-//     fn next(&mut self) -> Option<T> {
-//         self.0.pop_front()
-//     }
-// }
 
 /// 链表可变迭代器
 pub struct IterMut<'a, T> {
     // TODO: YOUR CODE HERE
-    marker: PhantomData<&'a mut T>,
+    // marker: PhantomData<&'a mut T>,
+    next: Option<&'a mut Node<T>>,
+    prev: Option<&'a mut Node<T>>,
 }
 
 impl<T> LinkedList<T> {
@@ -290,7 +287,13 @@ impl<T> LinkedList<T> {
         //     // TODO: YOUR CODE HERE
         //     marker : PhantomData,
         // }
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            Iter {
+                next: self.head.as_ref(),
+                prev: self.tail.as_ref(),
+            }
+        }
     }
 
     /// 返回一个可变迭代器
@@ -299,7 +302,13 @@ impl<T> LinkedList<T> {
         //     // TODO: YOUR CODE HERE
         //     marker: PhantomData,
         // }
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            IterMut {
+                next: self.head.as_mut(),
+                prev: self.tail.as_mut(),
+            }
+        }
     }
 
     /// 获取链表中指定位置的元素   
@@ -312,13 +321,39 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn get(&self, _at: usize) -> &T {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            if _at >= self.len() {
+                panic!("out of bounds");
+            }
+            for (i, j) in self.iter().enumerate() {
+                if i == _at {
+                    return j;
+                }
+            }
+            &(*self.head).elem
+        }
     }
 
     /// 获取链表中指定位置的可变元素
     pub fn get_mut(&mut self, _at: usize) -> &mut T {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            let mut current = self.head.as_mut();
+            for _ in 0.._at {
+                match current {
+                    Some(node) => {
+                        current = node.next.as_mut();
+                    }
+                    None => panic!("Out of bounds"),
+                }
+            }
+            match current {
+                Some(node) => &mut node.elem,
+                None => panic!("Out of bounds"),
+            }
+        }
     }
 
     /// 将元素插入到**下标为i**的位置    
@@ -337,7 +372,44 @@ impl<T> LinkedList<T> {
     /// ```
     pub fn insert(&mut self, _at: usize, _data: T) {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            self.length += 1;
+            if _at > self.len() {
+                panic!("out of bounds");
+            }
+            let mut current = self.head.as_mut();
+            for _ in 0.._at - 1 {
+                match current {
+                    Some(node) => {
+                        current = node.next.as_mut();
+                    }
+                    None => panic!("Out of bounds"),
+                }
+            }
+            let new_node = Box::into_raw(Box::new(Node {
+                elem: _data,
+                next: ptr::null_mut(),
+                prev: ptr::null_mut(),
+            }));
+            match current {
+                Some(node) => {
+                    // 新节点指向旧节点的下一个
+                    (*new_node).next = node.next;
+                    // 旧节点的下一个的prev指向新节点
+                    if !node.next.is_null() {
+                        (*node.next).prev = new_node;
+                    }
+
+                    (*node).next = new_node;
+                    (*new_node).prev = node;
+                }
+                None => {
+                    self.head = new_node;
+                    self.tail = new_node;
+                }
+            }
+        }
     }
 
     /// 移除链表中下标为i的元素
@@ -350,7 +422,42 @@ impl<T> LinkedList<T> {
     /// assert_eq!(list.remove(1), 2);
     pub fn remove(&mut self, _at: usize) -> T {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        if _at >= self.len() {
+            panic!("Out of bounds");
+        }
+        self.length -= 1;
+        let mut current = self.head;
+        let mut prev: *mut Node<T> = std::ptr::null_mut();
+
+        for i in 0.._at {
+            unsafe {
+                match current.as_mut() {
+                    Some(node) => {
+                        prev = node;
+                        current = (*node).next;
+                    }
+                    None => panic!("Out of bounds"),
+                }
+            }
+        }
+
+        unsafe {
+            let removed_node = if prev.is_null() {
+                let node = self.head;
+                self.head = (*node).next;
+                Box::from_raw(node)
+            } else {
+                let node = (*prev).next;
+                (*prev).next = (*node).next;
+                Box::from_raw(node)
+            };
+
+            let elem = std::ptr::read(&removed_node.elem);
+            std::mem::forget(removed_node);
+
+            elem
+        }
     }
 
     /// 将链表分割成两个链表，原链表为[0,at-1]，新链表为[at,len-1]。
@@ -366,7 +473,37 @@ impl<T> LinkedList<T> {
     /// assert_eq!(list.pop_front(), Some(2));
     pub fn split_off(&mut self, _at: usize) -> LinkedList<T> {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            if _at > self.len() {
+                panic!("Out of bounds");
+            }
+
+            let mut new_list = LinkedList {
+                head: std::ptr::null_mut(),
+                tail: std::ptr::null_mut(),
+                length: 0,
+            };
+
+            if _at == 0 {
+                std::mem::swap(self, &mut new_list);
+            } else {
+                let mut current = &mut self.head;
+
+                for _ in 0..(_at) {
+                    current = &mut (*(*current)).next;
+                }
+
+                new_list.head = *current;
+                new_list.tail = self.tail;
+                new_list.length = self.length - _at as i32;
+
+                self.length = _at as i32;
+                self.tail = (*(*current)).prev;
+                (*self.tail).next = std::ptr::null_mut();
+            }
+            new_list
+        }
     }
 
     /// 查找链表中第一个满足条件的元素
@@ -383,7 +520,13 @@ impl<T> LinkedList<T> {
         P: Fn(&T) -> bool,
     {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        for (i, j) in self.iter_mut().enumerate() {
+            if predicate(j) {
+                return Some(j);
+            }
+        }
+        None
     }
 }
 
@@ -400,7 +543,13 @@ impl<T: PartialEq> LinkedList<T> {
     /// ```
     pub fn contains(&mut self, _data: &T) -> bool {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        for (i, j) in self.iter().enumerate() {
+            if j == _data {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -428,13 +577,20 @@ impl<'a, T> Iterator for Iter<'a, T> {
     // 返回下一个元素，当没有元素可返回时，返回None
     fn next(&mut self) -> Option<Self::Item> {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            self.next.map(|node| {
+                self.next = node.next.as_ref();
+                &node.elem
+            })
+        }
     }
 
     // 返回(self.len, Some(self.len))即可
     fn size_hint(&self) -> (usize, Option<usize>) {
         // TODO: YOUR CODE HERE
         unimplemented!();
+        // (self.length as usize,Some(self.length as usize))
     }
 }
 impl<'a, T> Iterator for IterMut<'a, T> {
@@ -442,7 +598,14 @@ impl<'a, T> Iterator for IterMut<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            self.next.take().map(|node| {
+                self.next = node.next.as_mut();
+                // self.prev = Some(node);
+                &mut node.elem
+            })
+        }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -455,14 +618,28 @@ impl<'a, T: 'a> DoubleEndedIterator for Iter<'a, T> {
     // 返回前一个元素
     fn next_back(&mut self) -> Option<Self::Item> {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            self.prev.map(|node| {
+                self.prev = node.prev.as_ref();
+                // self.next = Some(node);
+                &node.elem
+            })
+        }
     }
 }
 
 impl<'a, T> DoubleEndedIterator for IterMut<'a, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         // TODO: YOUR CODE HERE
-        unimplemented!();
+        // unimplemented!();
+        unsafe {
+            self.prev.take().map(|node| {
+                self.prev = node.prev.as_mut();
+                // self.next = Some(node);
+                &mut node.elem
+            })
+        }
     }
 }
 
